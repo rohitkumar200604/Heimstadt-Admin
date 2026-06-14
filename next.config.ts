@@ -9,9 +9,6 @@ const nextConfig: NextConfig = {
     ],
   },
   // Vercel-compatible — no path imports, no __dirname usage
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     // We'll fix all type issues, but don't block deploy
     ignoreBuildErrors: false,
