@@ -57,6 +57,16 @@
     border-bottom: 1px solid rgba(27, 54, 93, 0.08);
   }
 
+  /* ── Floating menus (dropdowns/popovers) ──────────────
+     Opaque on purpose: these float over busy page content
+     (colored buttons, tables) — a translucent glass-card
+     background lets that content bleed through and wrecks
+     text contrast. Menus need a guaranteed-solid backdrop. */
+  .dropdown-panel {
+    background: #ffffff;
+    border: 1px solid rgba(27, 54, 93, 0.10);
+  }
+
   /* ── Gold gradient ───────────────────────────────────── */
   .gold-gradient {
     background: linear-gradient(135deg, #735c00 0%, #fed65b 50%, #735c00 100%);

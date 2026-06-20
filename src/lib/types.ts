@@ -8,26 +8,25 @@ export interface Profile {
   created_at: string;
 }
 
-export interface Conversation {
+// Raw row from the shared `messages` table (sender_id -> recipient_id),
+// used by the main website's "chat with us" widget and this admin inbox.
+export interface SupportMessage {
   id: string;
-  user_id: string | null;
-  user_name: string | null;
-  user_email: string | null;
-  subject: string | null;
-  status: 'open' | 'closed' | 'archived';
-  assigned_to: string | null;
-  created_at: string;
-  last_message?: string;
-  unread_count?: number;
+  sender_id: string | null;
+  recipient_id: string;
+  body: string;
+  sent_at: string;
+  is_read: boolean;
 }
 
-export interface ChatMessage {
-  id: string;
-  conversation_id: string;
-  sender_type: 'user' | 'employee' | 'admin';
-  sender_id: string | null;
-  content: string;
-  created_at: string;
+// A synthesized conversation thread: all messages with one other person,
+// grouped client-side since the live schema has no `conversations` table.
+export interface SupportThread {
+  otherId: string;
+  otherName: string;
+  otherEmail: string;
+  messages: SupportMessage[];
+  unreadCount: number;
 }
 
 export interface Document {

@@ -51,6 +51,7 @@ export default function SidebarShell({ children, role, fullName, avatarUrl, user
           role={role}
           fullName={fullName}
           avatarUrl={avatarUrl}
+          userEmail={userEmail}
           onMenuClick={() => setMobileOpen(true)}
         />
         <main className="flex-1 p-5 md:p-8 animate-fade-in">

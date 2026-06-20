@@ -1,47 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import ChatWindow from "@/components/ChatWindow";
-import type { Conversation, ChatMessage } from "@/lib/types";
-
-/* ─────────── Mock Data ─────────── */
-const MOCK_CONVERSATIONS: Conversation[] = [
-  { id: "c-001", user_id: "u1", user_name: "Elena Rodriguez",  user_email: "elena@example.com",  subject: "HVAC Malfunction - Unit 402",    status: "open", assigned_to: null, created_at: new Date(Date.now() - 120000).toISOString(), last_message: "The air conditioning unit in the north bedroom is making a loud metallic grinding sound...", unread_count: 2 },
-  { id: "c-002", user_id: "u2", user_name: "Klaus Müller",     user_email: "klaus@example.com",   subject: "Lease Renewal Inquiry",           status: "open", assigned_to: null, created_at: new Date(Date.now() - 3600000).toISOString(), last_message: "Hello, I'd like to discuss the terms for extending my stay for another 24 months...", unread_count: 1 },
-  { id: "c-003", user_id: "u3", user_name: "Aiko Tanaka",      user_email: "aiko@example.com",    subject: "Payment Confirmation Request",    status: "open", assigned_to: null, created_at: new Date(Date.now() - 10800000).toISOString(), last_message: "I've sent the wire transfer for this month's rent but haven't seen it reflected yet...", unread_count: 0 },
-  { id: "c-004", user_id: "u4", user_name: "Marc Dubois",      user_email: "marc@example.com",    subject: "Parking Slot Availability",       status: "open", assigned_to: null, created_at: new Date(Date.now() - 18000000).toISOString(), last_message: "Are there any additional guest parking spots available for this coming weekend?", unread_count: 0 },
-  { id: "c-005", user_id: "u5", user_name: "Sara Kovač",       user_email: "sara@example.com",    subject: "Move-in Date Confirmation",       status: "closed", assigned_to: null, created_at: new Date(Date.now() - 86400000).toISOString(), last_message: "Thank you, everything is confirmed. See you on Monday!", unread_count: 0 },
-];
-
-const MOCK_MESSAGES: Record<string, ChatMessage[]> = {
-  "c-001": [
-    { id: "m1", conversation_id: "c-001", sender_type: "user",     sender_id: "u1", content: "The air conditioning unit in the north bedroom is making a loud metallic grinding sound. It seems to be cooling, but the noise is quite disruptive. Can we have someone look at it?", created_at: new Date(Date.now() - 180000).toISOString() },
-    { id: "m2", conversation_id: "c-001", sender_type: "employee", sender_id: "e1", content: "Hello Elena, sorry to hear about the HVAC issue. I've flagged this as urgent. Our technician, Marcus, is currently in the building and can be at your unit in approximately 15 minutes. Does that work for you?", created_at: new Date(Date.now() - 120000).toISOString() },
-    { id: "m3", conversation_id: "c-001", sender_type: "user",     sender_id: "u1", content: "Yes, that would be perfect. I'm home and will be here all morning. Thank you for the quick response!", created_at: new Date(Date.now() - 60000).toISOString() },
-  ],
-  "c-002": [
-    { id: "m4", conversation_id: "c-002", sender_type: "user",     sender_id: "u2", content: "Hello, I'd like to discuss the terms for extending my stay for another 24 months. My current lease expires in 3 months.", created_at: new Date(Date.now() - 3600000).toISOString() },
-  ],
-  "c-003": [
-    { id: "m5", conversation_id: "c-003", sender_type: "user",     sender_id: "u3", content: "I've sent the wire transfer for this month's rent but haven't seen it reflected in the portal yet. Could you please check?", created_at: new Date(Date.now() - 10800000).toISOString() },
-  ],
-  "c-004": [
-    { id: "m6", conversation_id: "c-004", sender_type: "user",     sender_id: "u4", content: "Are there any additional guest parking spots available for this coming weekend? I'm expecting visitors.", created_at: new Date(Date.now() - 18000000).toISOString() },
-  ],
-  "c-005": [
-    { id: "m7", conversation_id: "c-005", sender_type: "user",     sender_id: "u5", content: "Could you confirm my move-in date and time?", created_at: new Date(Date.now() - 90000000).toISOString() },
-    { id: "m8", conversation_id: "c-005", sender_type: "employee", sender_id: "e1", content: "Absolutely, Sara! Your move-in is confirmed for Monday at 10:00 AM. Our concierge will meet you at the lobby.", created_at: new Date(Date.now() - 87000000).toISOString() },
-    { id: "m9", conversation_id: "c-005", sender_type: "user",     sender_id: "u5", content: "Thank you, everything is confirmed. See you on Monday!", created_at: new Date(Date.now() - 86400000).toISOString() },
-  ],
-};
-
-/* ─────────── Urgency label ─────────── */
-function getUrgencyLabel(conv: Conversation) {
-  if ((conv.unread_count ?? 0) > 0) return { label: "URGENT", cls: "bg-red-50 text-red-700 border-red-200" };
-  if (conv.status === "closed") return { label: "CLOSED", cls: "bg-[#e5eeff] text-[#44474e] border-[#c4c6cf]" };
-  return { label: "OPEN", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" };
-}
+import type { SupportMessage, SupportThread } from "@/lib/types";
 
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -53,87 +15,165 @@ function timeAgo(iso: string) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-/* ─────────── Main Component ─────────── */
-export default function MessagesPage() {
-  const [conversations, setConversations] = useState<Conversation[]>(MOCK_CONVERSATIONS);
-  const [activeId, setActiveId] = useState<string>(MOCK_CONVERSATIONS[0].id);
-  const [messages, setMessages] = useState<ChatMessage[]>(MOCK_MESSAGES["c-001"]);
-  const [reply, setReply] = useState("");
-  const [tab, setTab] = useState<"all" | "open" | "closed">("all");
-  const [mobileShowChat, setMobileShowChat] = useState(false);
-  const activeConv = conversations.find((c) => c.id === activeId)!;
+function buildThreads(messages: SupportMessage[], meId: string, profiles: Map<string, { full_name: string | null; email: string | null }>) {
+  const byOther = new Map<string, SupportMessage[]>();
+  for (const m of messages) {
+    const otherId = m.sender_id === meId ? m.recipient_id : m.sender_id;
+    if (!otherId || otherId === meId) continue;
+    if (!byOther.has(otherId)) byOther.set(otherId, []);
+    byOther.get(otherId)!.push(m);
+  }
 
-  /* Subscribe to realtime (will work once real DB is connected) */
-  useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase
-      .channel("chat-messages-realtime")
-      .on(
-        "postgres_changes" as never,
-        { event: "INSERT", schema: "public", table: "chat_messages" },
-        (payload: { new: ChatMessage }) => {
-          const msg = payload.new;
-          if (msg.conversation_id === activeId) {
-            setMessages((prev) => [...prev, msg]);
-          }
-          // Update unread count on conversation list
-          setConversations((prev) =>
-            prev.map((c) =>
-              c.id === msg.conversation_id && msg.sender_type === "user"
-                ? { ...c, last_message: msg.content, unread_count: (c.unread_count ?? 0) + 1 }
-                : c
-            )
-          );
-        }
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [activeId]);
-
-  const selectConversation = useCallback((id: string) => {
-    setActiveId(id);
-    setMessages(MOCK_MESSAGES[id] || []);
-    setMobileShowChat(true);
-    // Mark read
-    setConversations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, unread_count: 0 } : c))
-    );
-  }, []);
-
-  async function handleSend() {
-    if (!reply.trim()) return;
-
-    const newMsg: ChatMessage = {
-      id: `m-${Date.now()}`,
-      conversation_id: activeId,
-      sender_type: "employee",
-      sender_id: "current-user",
-      content: reply.trim(),
-      created_at: new Date().toISOString(),
-    };
-
-    // Optimistic update
-    setMessages((prev) => [...prev, newMsg]);
-    setConversations((prev) =>
-      prev.map((c) => (c.id === activeId ? { ...c, last_message: reply.trim() } : c))
-    );
-    setReply("");
-
-    // Insert into Supabase (will work once real DB is connected)
-    const supabase = createClient();
-    await supabase.from("chat_messages").insert({
-      conversation_id: activeId,
-      sender_type: "employee",
-      content: newMsg.content,
+  const threads: SupportThread[] = [];
+  for (const [otherId, msgs] of byOther) {
+    msgs.sort((a, b) => new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime());
+    const profile = profiles.get(otherId);
+    threads.push({
+      otherId,
+      otherName: profile?.full_name || "Unknown",
+      otherEmail: profile?.email || "",
+      messages: msgs,
+      unreadCount: msgs.filter((m) => m.sender_id === otherId && !m.is_read).length,
     });
   }
 
-  const filtered = conversations.filter((c) => {
-    if (tab === "open") return c.status === "open";
-    if (tab === "closed") return c.status === "closed";
-    return true;
+  threads.sort((a, b) => {
+    const aLast = a.messages[a.messages.length - 1]?.sent_at ?? "";
+    const bLast = b.messages[b.messages.length - 1]?.sent_at ?? "";
+    return new Date(bLast).getTime() - new Date(aLast).getTime();
   });
+  return threads;
+}
+
+export default function MessagesPage() {
+  const [meId, setMeId] = useState<string | null>(null);
+  const [threads, setThreads] = useState<SupportThread[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [reply, setReply] = useState("");
+  const [tab, setTab] = useState<"all" | "unread">("all");
+  const [mobileShowChat, setMobileShowChat] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const meIdRef = useRef<string | null>(null);
+
+  const fetchThreads = useCallback(async () => {
+    const supabase = createClient();
+    const { data: userData } = await supabase.auth.getUser();
+    const me = userData.user?.id;
+    if (!me) return;
+    meIdRef.current = me;
+    setMeId(me);
+
+    const { data: messages, error } = await supabase
+      .from("messages")
+      .select("id, sender_id, recipient_id, body, sent_at, is_read")
+      .or(`sender_id.eq.${me},recipient_id.eq.${me}`)
+      .order("sent_at", { ascending: true });
+
+    if (error || !messages) {
+      setLoading(false);
+      return;
+    }
+
+    const otherIds = Array.from(
+      new Set(
+        messages
+          .map((m) => (m.sender_id === me ? m.recipient_id : m.sender_id))
+          .filter((id): id is string => !!id && id !== me)
+      )
+    );
+
+    const profileMap = new Map<string, { full_name: string | null; email: string | null }>();
+    if (otherIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", otherIds);
+      for (const p of profiles ?? []) {
+        profileMap.set(p.id, { full_name: p.full_name, email: p.email });
+      }
+    }
+
+    const built = buildThreads(messages as SupportMessage[], me, profileMap);
+    setThreads(built);
+    setLoading(false);
+    setActiveId((prev) => prev ?? built[0]?.otherId ?? null);
+  }, []);
+
+  useEffect(() => {
+    fetchThreads();
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel("support-messages-realtime")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, () => {
+        fetchThreads();
+      })
+      .subscribe();
+
+    const pollId = setInterval(fetchThreads, 15000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(pollId);
+    };
+  }, [fetchThreads]);
+
+  const activeThread = threads.find((t) => t.otherId === activeId) ?? null;
+
+  const selectThread = useCallback(
+    async (otherId: string) => {
+      setActiveId(otherId);
+      setMobileShowChat(true);
+
+      const me = meIdRef.current;
+      if (!me) return;
+      const thread = threads.find((t) => t.otherId === otherId);
+      if (!thread || thread.unreadCount === 0) return;
+
+      // Mark incoming messages from this person as read.
+      const supabase = createClient();
+      await supabase
+        .from("messages")
+        .update({ is_read: true })
+        .eq("sender_id", otherId)
+        .eq("recipient_id", me)
+        .eq("is_read", false);
+
+      setThreads((prev) =>
+        prev.map((t) =>
+          t.otherId === otherId
+            ? { ...t, unreadCount: 0, messages: t.messages.map((m) => ({ ...m, is_read: true })) }
+            : t
+        )
+      );
+    },
+    [threads]
+  );
+
+  async function handleSend() {
+    const text = reply.trim();
+    if (!text || !meId || !activeId) return;
+
+    setReply("");
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("messages")
+      .insert({ sender_id: meId, recipient_id: activeId, body: text, channel: "chat_with_us" })
+      .select("id, sender_id, recipient_id, body, sent_at, is_read")
+      .single();
+
+    if (!error && data) {
+      setThreads((prev) =>
+        prev.map((t) => (t.otherId === activeId ? { ...t, messages: [...t.messages, data as SupportMessage] } : t))
+      );
+    } else {
+      console.error("Failed to send reply:", error);
+      setReply(text);
+    }
+  }
+
+  const filtered = threads.filter((t) => (tab === "unread" ? t.unreadCount > 0 : true));
 
   return (
     <div className="h-[calc(100vh-var(--topbar-height)-40px)] md:h-[calc(100vh-var(--topbar-height)-64px)] flex flex-col max-w-[1280px] mx-auto">
@@ -147,7 +187,6 @@ export default function MessagesPage() {
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
           </span>
-          <span className="text-xs text-[#44474e]/50">Avg response: 4m</span>
         </div>
       </div>
 
@@ -158,7 +197,7 @@ export default function MessagesPage() {
           {/* Tabs */}
           <div className="p-4 border-b border-[rgba(27,54,93,0.06)] bg-white/40">
             <div className="flex gap-4">
-              {(["all", "open", "closed"] as const).map((t) => (
+              {(["all", "unread"] as const).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
@@ -166,7 +205,7 @@ export default function MessagesPage() {
                     tab === t ? "text-[#002046] border-b-2 border-[#735c00]" : "text-[#44474e]/50 hover:text-[#002046]"
                   }`}
                 >
-                  {t === "all" ? "All Chats" : t === "open" ? "Open" : "Closed"}
+                  {t === "all" ? "All Chats" : "Unread"}
                 </button>
               ))}
             </div>
@@ -174,13 +213,22 @@ export default function MessagesPage() {
 
           {/* Conversation list */}
           <div className="flex-1 overflow-y-auto">
-            {filtered.map((conv) => {
-              const urgency = getUrgencyLabel(conv);
-              const isActive = conv.id === activeId;
+            {loading && (
+              <div className="p-6 text-center text-xs text-[#44474e]/50">Loading conversations…</div>
+            )}
+            {!loading && filtered.length === 0 && (
+              <div className="p-6 text-center text-xs text-[#44474e]/50">
+                No {tab === "unread" ? "unread " : ""}messages yet. Visitor messages from the &ldquo;Chat with us&rdquo;
+                widget on the main site will show up here.
+              </div>
+            )}
+            {filtered.map((thread) => {
+              const last = thread.messages[thread.messages.length - 1];
+              const isActive = thread.otherId === activeId;
               return (
                 <button
-                  key={conv.id}
-                  onClick={() => selectConversation(conv.id)}
+                  key={thread.otherId}
+                  onClick={() => selectThread(thread.otherId)}
                   className={`w-full text-left p-4 border-b border-[rgba(27,54,93,0.04)] transition-all ${
                     isActive
                       ? "bg-[rgba(253,221,124,0.12)] border-l-4 border-l-[#735c00]"
@@ -188,14 +236,19 @@ export default function MessagesPage() {
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border ${urgency.cls}`}>
-                      {urgency.label}
-                    </span>
-                    <span className="text-[10px] text-[#44474e]/40">{timeAgo(conv.created_at)}</span>
+                    {thread.unreadCount > 0 ? (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border bg-red-50 text-red-700 border-red-200">
+                        {thread.unreadCount} NEW
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border bg-emerald-50 text-emerald-700 border-emerald-200">
+                        READ
+                      </span>
+                    )}
+                    {last && <span className="text-[10px] text-[#44474e]/40">{timeAgo(last.sent_at)}</span>}
                   </div>
-                  <p className="text-sm font-semibold text-[#002046] mb-0.5 truncate">{conv.subject}</p>
-                  <p className="text-xs text-[#44474e]/60 truncate">{conv.last_message}</p>
-                  <p className="text-[10px] text-[#44474e]/40 mt-1">{conv.user_name}</p>
+                  <p className="text-sm font-semibold text-[#002046] mb-0.5 truncate">{thread.otherName}</p>
+                  <p className="text-xs text-[#44474e]/60 truncate">{last?.body}</p>
                 </button>
               );
             })}
@@ -203,15 +256,24 @@ export default function MessagesPage() {
         </div>
 
         {/* Right: Chat window */}
-        <ChatWindow
-          conversation={activeConv}
-          messages={messages}
-          reply={reply}
-          setReply={setReply}
-          onSend={handleSend}
-          onBack={() => setMobileShowChat(false)}
-          mobileVisible={mobileShowChat}
-        />
+        {activeThread && meId ? (
+          <ChatWindow
+            thread={activeThread}
+            messages={activeThread.messages}
+            currentUserId={meId}
+            reply={reply}
+            setReply={setReply}
+            onSend={handleSend}
+            onBack={() => setMobileShowChat(false)}
+            mobileVisible={mobileShowChat}
+          />
+        ) : (
+          !loading && (
+            <div className="flex-1 hidden md:flex items-center justify-center glass-card rounded-2xl text-sm text-[#44474e]/50">
+              Select a conversation to view messages.
+            </div>
+          )
+        )}
       </div>
     </div>
   );
