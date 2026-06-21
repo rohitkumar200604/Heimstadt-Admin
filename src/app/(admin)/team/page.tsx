@@ -1,30 +1,65 @@
 "use client";
 
+import { useEffect, useState, useCallback } from "react";
 import RoleGuard from "@/components/RoleGuard";
+import { createClient } from "@/lib/supabase/client";
+import { TeamMember } from "@/lib/types";
 
-/* ─────────── Mock Data ─────────── */
-interface TeamMember {
-  id: string;
-  name: string;
-  email: string;
-  role: "admin" | "employee";
-  status: "online" | "offline" | "away";
-  assigned_chats: number;
-  assigned_docs: number;
-  joined: string;
+interface TeamMemberWithStats extends TeamMember {
+  replies_sent: number;
+  docs_reviewed: number;
 }
-
-const MOCK_TEAM: TeamMember[] = [
-  { id: "t-001", name: "Rohit Kumar",     email: "rohit@heimstadt.com",   role: "admin",    status: "online",  assigned_chats: 0, assigned_docs: 0, joined: "2024-01-15" },
-  { id: "t-002", name: "Lena Fischer",    email: "lena@heimstadt.com",    role: "employee", status: "online",  assigned_chats: 4, assigned_docs: 3, joined: "2024-06-01" },
-  { id: "t-003", name: "Tobias Bauer",    email: "tobias@heimstadt.com",  role: "employee", status: "online",  assigned_chats: 2, assigned_docs: 5, joined: "2024-08-15" },
-  { id: "t-004", name: "Maria Santos",    email: "maria@heimstadt.com",   role: "employee", status: "away",    assigned_chats: 6, assigned_docs: 1, joined: "2025-01-10" },
-  { id: "t-005", name: "Erik Lindström",  email: "erik@heimstadt.com",    role: "employee", status: "offline", assigned_chats: 0, assigned_docs: 0, joined: "2025-03-20" },
-];
 
 /* ─────────── Page (Admin Only) ─────────── */
 export default function TeamPage() {
-  const onlineCount = MOCK_TEAM.filter((m) => m.status === "online").length;
+  const [team, setTeam] = useState<TeamMemberWithStats[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [viewingMember, setViewingMember] = useState<TeamMemberWithStats | null>(null);
+
+  const fetchTeam = useCallback(async () => {
+    const supabase = createClient();
+
+    const { data: profiles, error } = await supabase
+      .from("profiles")
+      .select("id, full_name, email, role, avatar_url, created_at")
+      .in("role", ["admin", "employee"])
+      .order("created_at", { ascending: true });
+
+    if (error || !profiles) {
+      setLoading(false);
+      return;
+    }
+
+    const [{ data: messages }, { data: docs }] = await Promise.all([
+      supabase.from("messages").select("sender_id"),
+      supabase.from("verification_documents").select("reviewed_by"),
+    ]);
+
+    const replyCounts = new Map<string, number>();
+    for (const m of messages ?? []) {
+      if (!m.sender_id) continue;
+      replyCounts.set(m.sender_id, (replyCounts.get(m.sender_id) ?? 0) + 1);
+    }
+
+    const reviewCounts = new Map<string, number>();
+    for (const d of docs ?? []) {
+      if (!d.reviewed_by) continue;
+      reviewCounts.set(d.reviewed_by, (reviewCounts.get(d.reviewed_by) ?? 0) + 1);
+    }
+
+    setTeam(
+      profiles.map((p) => ({
+        ...p,
+        replies_sent: replyCounts.get(p.id) ?? 0,
+        docs_reviewed: reviewCounts.get(p.id) ?? 0,
+      }))
+    );
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchTeam();
+  }, [fetchTeam]);
 
   return (
     <RoleGuard allowedRoles={["admin"]}>
@@ -37,34 +72,32 @@ export default function TeamPage() {
           <p className="text-sm text-[#44474e]/70 mt-1">Manage employees and administrators. Add new team members via Supabase dashboard.</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            {onlineCount} online
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-[rgba(0,32,70,0.06)] text-[#002046] border border-[rgba(0,32,70,0.1)]">
+            {team.length} staff
           </span>
         </div>
       </div>
 
       {/* Team Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-        {MOCK_TEAM.map((member) => (
+        {loading && (
+          <div className="col-span-full text-center py-20 text-sm text-[#44474e]/50">Loading team…</div>
+        )}
+
+        {!loading && team.map((member) => (
           <div key={member.id} className="glass-card rounded-2xl p-5 card-hover group">
             <div className="flex items-start gap-3 mb-4">
               {/* Avatar */}
-              <div className="relative">
-                <div className={`w-11 h-11 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${
-                  member.role === "admin"
-                    ? "bg-gradient-to-br from-[#735c00] to-[#fed65b]"
-                    : "bg-gradient-to-br from-[#002046] to-[#1b365d]"
-                }`}>
-                  {member.name.charAt(0)}
-                </div>
-                <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
-                  member.status === "online" ? "bg-emerald-500" : member.status === "away" ? "bg-amber-500" : "bg-[#c4c6cf]"
-                }`} />
+              <div className={`w-11 h-11 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${
+                member.role === "admin"
+                  ? "bg-gradient-to-br from-[#735c00] to-[#fed65b]"
+                  : "bg-gradient-to-br from-[#002046] to-[#1b365d]"
+              }`}>
+                {(member.full_name || member.email).charAt(0).toUpperCase()}
               </div>
               {/* Info */}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-[#002046] truncate">{member.name}</p>
+                <p className="text-sm font-semibold text-[#002046] truncate">{member.full_name || "Unnamed"}</p>
                 <p className="text-[10px] text-[#44474e]/50 truncate">{member.email}</p>
               </div>
               {/* Role badge */}
@@ -80,43 +113,97 @@ export default function TeamPage() {
             {/* Stats */}
             <div className="grid grid-cols-3 gap-3 py-3 border-y border-[rgba(27,54,93,0.06)]">
               <div className="text-center">
-                <p className="text-lg font-bold text-[#002046]">{member.assigned_chats}</p>
-                <p className="text-[9px] text-[#44474e]/50 uppercase tracking-wider">Chats</p>
+                <p className="text-lg font-bold text-[#002046]">{member.replies_sent}</p>
+                <p className="text-[9px] text-[#44474e]/50 uppercase tracking-wider">Replies</p>
               </div>
               <div className="text-center">
-                <p className="text-lg font-bold text-[#002046]">{member.assigned_docs}</p>
-                <p className="text-[9px] text-[#44474e]/50 uppercase tracking-wider">Docs</p>
+                <p className="text-lg font-bold text-[#002046]">{member.docs_reviewed}</p>
+                <p className="text-[9px] text-[#44474e]/50 uppercase tracking-wider">Reviewed</p>
               </div>
               <div className="text-center">
-                <p className="text-[10px] font-semibold text-[#002046]">{member.joined}</p>
+                <p className="text-[10px] font-semibold text-[#002046]">{new Date(member.created_at).toLocaleDateString()}</p>
                 <p className="text-[9px] text-[#44474e]/50 uppercase tracking-wider">Joined</p>
               </div>
             </div>
 
             {/* Actions */}
             <div className="mt-4 flex gap-2">
-              <button className="flex-1 py-2 rounded-xl border border-[rgba(27,54,93,0.08)] text-xs font-semibold text-[#44474e]/60 hover:text-[#002046] hover:border-[#002046] transition-all text-center">
+              <button
+                onClick={() => setViewingMember(member)}
+                className="flex-1 py-2 rounded-xl border border-[rgba(27,54,93,0.08)] text-xs font-semibold text-[#44474e]/60 hover:text-[#002046] hover:border-[#002046] transition-all text-center"
+              >
                 View Profile
               </button>
-              {member.role !== "admin" && (
-                <button className="w-9 h-9 rounded-xl border border-[rgba(27,54,93,0.08)] flex items-center justify-center text-[#44474e]/40 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-all">
-                  <span className="material-symbols-outlined text-[16px]">person_remove</span>
-                </button>
-              )}
             </div>
           </div>
         ))}
 
         {/* Add Employee Card */}
-        <div className="glass-card rounded-2xl p-5 border-2 border-dashed border-[rgba(27,54,93,0.1)] flex flex-col items-center justify-center text-center min-h-[200px] hover:border-[#735c00] transition-colors cursor-pointer group">
-          <div className="w-12 h-12 rounded-full bg-[rgba(115,92,0,0.06)] flex items-center justify-center mb-3 group-hover:bg-[rgba(115,92,0,0.12)] transition-colors">
-            <span className="material-symbols-outlined text-[24px] text-[#735c00]">person_add</span>
+        {!loading && (
+          <div className="glass-card rounded-2xl p-5 border-2 border-dashed border-[rgba(27,54,93,0.1)] flex flex-col items-center justify-center text-center min-h-[200px] hover:border-[#735c00] transition-colors cursor-pointer group">
+            <div className="w-12 h-12 rounded-full bg-[rgba(115,92,0,0.06)] flex items-center justify-center mb-3 group-hover:bg-[rgba(115,92,0,0.12)] transition-colors">
+              <span className="material-symbols-outlined text-[24px] text-[#735c00]">person_add</span>
+            </div>
+            <p className="text-sm font-semibold text-[#002046] mb-1">Add Team Member</p>
+            <p className="text-[10px] text-[#44474e]/50 max-w-[180px]">Create a new user account from the Supabase dashboard and assign their role.</p>
           </div>
-          <p className="text-sm font-semibold text-[#002046] mb-1">Add Team Member</p>
-          <p className="text-[10px] text-[#44474e]/50 max-w-[180px]">Create a new user account from the Supabase dashboard and assign their role.</p>
-        </div>
+        )}
       </div>
+
+      {/* View Profile Modal */}
+      {viewingMember && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[60] flex items-center justify-center p-5" onClick={() => setViewingMember(null)}>
+          <div
+            className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden animate-fade-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 border-b border-[rgba(27,54,93,0.06)] flex items-center justify-between">
+              <h3 className="font-bold text-[#002046]">Team Member Profile</h3>
+              <button onClick={() => setViewingMember(null)} className="w-8 h-8 rounded-full flex items-center justify-center text-[#44474e]/40 hover:text-[#002046] hover:bg-[rgba(27,54,93,0.04)] transition-all">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="flex items-center gap-4 mb-6">
+                <div className={`w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 ${
+                  viewingMember.role === "admin"
+                    ? "bg-gradient-to-br from-[#735c00] to-[#fed65b]"
+                    : "bg-gradient-to-br from-[#002046] to-[#1b365d]"
+                }`}>
+                  {(viewingMember.full_name || viewingMember.email).charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-[#002046] truncate">{viewingMember.full_name || "Unnamed"}</p>
+                  <p className="text-xs text-[#44474e]/60 truncate">{viewingMember.email}</p>
+                  <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${
+                    viewingMember.role === "admin"
+                      ? "bg-[rgba(115,92,0,0.08)] text-[#735c00] border-[rgba(115,92,0,0.15)]"
+                      : "bg-[rgba(0,32,70,0.06)] text-[#002046] border-[rgba(0,32,70,0.1)]"
+                  }`}>
+                    {viewingMember.role}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <DetailRow label="Joined" value={new Date(viewingMember.created_at).toLocaleDateString()} />
+                <DetailRow label="Chat replies sent" value={String(viewingMember.replies_sent)} />
+                <DetailRow label="Documents reviewed" value={String(viewingMember.docs_reviewed)} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </RoleGuard>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs text-[#44474e]/60">{label}</span>
+      <span className="text-xs font-semibold text-[#002046]">{value}</span>
+    </div>
   );
 }
