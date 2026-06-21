@@ -71,14 +71,13 @@ export default function Sidebar({ role, fullName, avatarUrl, onClose }: SidebarP
               className="absolute inset-0 rounded-xl blur-md opacity-60"
               style={{ background: "linear-gradient(135deg, #fed65b 0%, #002046 100%)" }}
             />
-            <div
-              className="relative w-10 h-10 rounded-xl flex items-center justify-center shadow-lg ring-1 ring-white/20"
-              style={{ background: "linear-gradient(135deg, #002046 0%, #1b365d 100%)" }}
-            >
-              <span className="material-symbols-outlined text-white text-[19px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                home_work
-              </span>
-            </div>
+            <Image
+              src="/logo.jpg"
+              alt="Heimstadt"
+              width={40}
+              height={40}
+              className="relative w-10 h-10 rounded-xl object-cover object-top shadow-lg ring-1 ring-white/20"
+            />
           </div>
           <div>
             <p className="font-bold text-[#002046] leading-tight text-base tracking-tight">Heimstadt</p>
