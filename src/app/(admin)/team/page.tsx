@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, FormEvent } from "react";
 import RoleGuard from "@/components/RoleGuard";
 import { createClient } from "@/lib/supabase/client";
 import { TeamMember } from "@/lib/types";
@@ -15,6 +15,11 @@ export default function TeamPage() {
   const [team, setTeam] = useState<TeamMemberWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewingMember, setViewingMember] = useState<TeamMemberWithStats | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm, setAddForm] = useState({ full_name: "", email: "", role: "employee" as "admin" | "employee" });
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState("");
+  const [createdCreds, setCreatedCreds] = useState<{ email: string; tempPassword: string } | null>(null);
 
   const fetchTeam = useCallback(async () => {
     const supabase = createClient();
@@ -60,6 +65,31 @@ export default function TeamPage() {
   useEffect(() => {
     fetchTeam();
   }, [fetchTeam]);
+
+  async function handleAddMember(e: FormEvent) {
+    e.preventDefault();
+    setAdding(true);
+    setAddError("");
+
+    try {
+      const res = await fetch("/api/team/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(addForm),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "Failed to add team member");
+
+      setCreatedCreds({ email: data.email, tempPassword: data.tempPassword });
+      setShowAddModal(false);
+      setAddForm({ full_name: "", email: "", role: "employee" });
+      await fetchTeam();
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : "Failed to add team member");
+    } finally {
+      setAdding(false);
+    }
+  }
 
   return (
     <RoleGuard allowedRoles={["admin"]}>
@@ -140,13 +170,16 @@ export default function TeamPage() {
 
         {/* Add Employee Card */}
         {!loading && (
-          <div className="glass-card rounded-2xl p-5 border-2 border-dashed border-[rgba(27,54,93,0.1)] flex flex-col items-center justify-center text-center min-h-[200px] hover:border-[#735c00] transition-colors cursor-pointer group">
+          <button
+            onClick={() => { setAddError(""); setShowAddModal(true); }}
+            className="glass-card rounded-2xl p-5 border-2 border-dashed border-[rgba(27,54,93,0.1)] flex flex-col items-center justify-center text-center min-h-[200px] hover:border-[#735c00] transition-colors cursor-pointer group"
+          >
             <div className="w-12 h-12 rounded-full bg-[rgba(115,92,0,0.06)] flex items-center justify-center mb-3 group-hover:bg-[rgba(115,92,0,0.12)] transition-colors">
               <span className="material-symbols-outlined text-[24px] text-[#735c00]">person_add</span>
             </div>
             <p className="text-sm font-semibold text-[#002046] mb-1">Add Team Member</p>
-            <p className="text-[10px] text-[#44474e]/50 max-w-[180px]">Create a new user account from the Supabase dashboard and assign their role.</p>
-          </div>
+            <p className="text-[10px] text-[#44474e]/50 max-w-[180px]">Create a new staff account and assign their role.</p>
+          </button>
         )}
       </div>
 
@@ -189,6 +222,92 @@ export default function TeamPage() {
                 <DetailRow label="Joined" value={new Date(viewingMember.created_at).toLocaleDateString()} />
                 <DetailRow label="Chat replies sent" value={String(viewingMember.replies_sent)} />
                 <DetailRow label="Documents reviewed" value={String(viewingMember.docs_reviewed)} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Team Member Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[60] flex items-center justify-center p-5" onClick={() => setShowAddModal(false)}>
+          <div
+            className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden animate-fade-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 border-b border-[rgba(27,54,93,0.06)] flex items-center justify-between">
+              <h3 className="font-bold text-[#002046]">Add Team Member</h3>
+              <button onClick={() => setShowAddModal(false)} className="w-8 h-8 rounded-full flex items-center justify-center text-[#44474e]/40 hover:text-[#002046] hover:bg-[rgba(27,54,93,0.04)] transition-all">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+            <form onSubmit={handleAddMember} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[#44474e]/70 mb-1.5">Full name</label>
+                <input
+                  type="text"
+                  required
+                  value={addForm.full_name}
+                  onChange={(e) => setAddForm((f) => ({ ...f, full_name: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-xl border border-[rgba(27,54,93,0.1)] text-sm focus:outline-none focus:ring-2 focus:ring-[#002046]/20"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#44474e]/70 mb-1.5">Email</label>
+                <input
+                  type="email"
+                  required
+                  value={addForm.email}
+                  onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-xl border border-[rgba(27,54,93,0.1)] text-sm focus:outline-none focus:ring-2 focus:ring-[#002046]/20"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#44474e]/70 mb-1.5">Role</label>
+                <select
+                  value={addForm.role}
+                  onChange={(e) => setAddForm((f) => ({ ...f, role: e.target.value as "admin" | "employee" }))}
+                  className="w-full px-3 py-2.5 rounded-xl border border-[rgba(27,54,93,0.1)] text-sm focus:outline-none focus:ring-2 focus:ring-[#002046]/20"
+                >
+                  <option value="employee">Employee</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+
+              {addError && <p className="text-xs text-red-600">{addError}</p>}
+
+              <button
+                type="submit"
+                disabled={adding}
+                className="w-full py-3 rounded-xl bg-[#002046] text-white font-semibold text-sm hover:bg-[#1b365d] transition-colors disabled:opacity-50"
+              >
+                {adding ? "Creating…" : "Create Account"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Created Credentials Modal */}
+      {createdCreds && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[60] flex items-center justify-center p-5" onClick={() => setCreatedCreds(null)}>
+          <div
+            className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden animate-fade-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 border-b border-[rgba(27,54,93,0.06)] flex items-center justify-between">
+              <h3 className="font-bold text-[#002046]">Account Created</h3>
+              <button onClick={() => setCreatedCreds(null)} className="w-8 h-8 rounded-full flex items-center justify-center text-[#44474e]/40 hover:text-[#002046] hover:bg-[rgba(27,54,93,0.04)] transition-all">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-[#44474e]/70">
+                Share these credentials with the new team member. They should change this password from <strong>Settings</strong> after logging in — it won&apos;t be shown again.
+              </p>
+              <div className="space-y-3">
+                <DetailRow label="Email" value={createdCreds.email} />
+                <DetailRow label="Temporary password" value={createdCreds.tempPassword} />
               </div>
             </div>
           </div>
