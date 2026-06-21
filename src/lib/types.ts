@@ -29,16 +29,18 @@ export interface SupportThread {
   unreadCount: number;
 }
 
+// Raw row from the shared `verification_documents` table — KYC-style
+// uploads (passport, visa, enrollment, income proof) tied to a user,
+// not to a specific booking.
 export interface Document {
   id: string;
-  user_id: string | null;
-  booking_id: string | null;
-  document_type: string | null;
-  file_path: string | null;
-  context: 'booking' | 'profile';
-  status: 'pending' | 'verified' | 'rejected';
-  verified_by: string | null;
-  verified_at: string | null;
+  user_id: string;
+  doc_type: 'passport' | 'visa' | 'enrollment' | 'income';
+  s3_key: string;
+  file_name: string;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewed_by: string | null;
+  reviewed_at: string | null;
   created_at: string;
   // Joined fields
   user_name?: string;
@@ -70,6 +72,13 @@ export interface Property {
   size_sqm: number;
   image_url?: string;
 }
+
+export const DOC_TYPE_LABELS: Record<Document['doc_type'], string> = {
+  passport: 'Passport',
+  visa: 'Visa',
+  enrollment: 'Enrollment Proof',
+  income: 'Income Proof',
+};
 
 export interface TeamMember {
   id: string;

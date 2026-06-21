@@ -1,6 +1,6 @@
 "use client";
 
-import { Document } from "@/lib/types";
+import { Document, DOC_TYPE_LABELS } from "@/lib/types";
 
 interface DocumentCardProps {
   doc: Document;
@@ -19,17 +19,13 @@ export default function DocumentCard({ doc, onReview, onReject }: DocumentCardPr
       {/* Doc icon + type */}
       <div className="flex items-start gap-3 mb-4">
         <div className="w-10 h-10 rounded-xl bg-[#eff4ff] flex items-center justify-center flex-shrink-0">
-          <span className="material-symbols-outlined text-[20px] text-[#002046]/50">
-            {doc.context === "booking" ? "description" : "badge"}
-          </span>
+          <span className="material-symbols-outlined text-[20px] text-[#002046]/50">badge</span>
         </div>
         <div className="min-w-0">
           <h4 className="text-sm font-semibold text-[#002046] group-hover:text-[#735c00] transition-colors truncate pr-16">
-            {doc.document_type || "Document"}
+            {DOC_TYPE_LABELS[doc.doc_type]}
           </h4>
-          <p className="text-[10px] text-[#44474e]/50">
-            {doc.context === "booking" ? `Booking: ${doc.booking_id || "Application"}` : "Profile Verification"}
-          </p>
+          <p className="text-[10px] text-[#44474e]/50 truncate">{doc.file_name}</p>
         </div>
       </div>
 
@@ -43,20 +39,6 @@ export default function DocumentCard({ doc, onReview, onReject }: DocumentCardPr
         </span>
         <span className="ml-auto text-[10px] text-[#44474e]/40">
           {new Date(doc.created_at).toLocaleDateString([], { month: "short", day: "numeric" })}
-        </span>
-      </div>
-
-      {/* Context badge */}
-      <div className="mt-3 flex items-center justify-between">
-        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
-          doc.context === "booking"
-            ? "bg-[rgba(0,32,70,0.06)] text-[#002046]"
-            : "bg-[rgba(115,92,0,0.06)] text-[#735c00]"
-        }`}>
-          <span className="material-symbols-outlined text-[10px]">
-            {doc.context === "booking" ? "calendar_today" : "person"}
-          </span>
-          {doc.context}
         </span>
       </div>
 
@@ -94,7 +76,7 @@ export default function DocumentCard({ doc, onReview, onReject }: DocumentCardPr
 function StatusBadge({ status }: { status: Document["status"] }) {
   const styles = {
     pending:  { cls: "bg-amber-50 text-amber-700 border-amber-200",     icon: "schedule" },
-    verified: { cls: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: "check_circle" },
+    approved: { cls: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: "check_circle" },
     rejected: { cls: "bg-red-50 text-red-700 border-red-200",            icon: "cancel" },
   };
   const s = styles[status];
