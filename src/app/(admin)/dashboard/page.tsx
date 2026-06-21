@@ -20,24 +20,26 @@ export default async function DashboardPage() {
   const role = profile?.role ?? "employee";
   const fullName = profile?.full_name ?? user.email?.split("@")[0] ?? "User";
 
-  // Fetch mock stats (will use real data when tables exist)
-  // Admin stats
   const [
     { count: bookingsCount },
     { count: pendingDocsCount },
-    { count: openChatsCount },
+    { data: unreadMessages },
     { count: propertiesCount },
   ] = await Promise.all([
     supabase.from("bookings").select("*", { count: "exact", head: true }),
-    supabase.from("documents").select("*", { count: "exact", head: true }).eq("status", "pending"),
-    supabase.from("conversations").select("*", { count: "exact", head: true }).eq("status", "open"),
+    supabase.from("verification_documents").select("*", { count: "exact", head: true }).eq("status", "pending"),
+    // No `conversations` table exists — approximate "open chats" as the number
+    // of distinct senders with at least one unread message to staff.
+    supabase.from("messages").select("sender_id").eq("is_read", false).not("sender_id", "is", null),
     supabase.from("properties").select("*", { count: "exact", head: true }),
   ]);
+
+  const openChatsCount = new Set((unreadMessages ?? []).map((m) => m.sender_id)).size;
 
   const stats = {
     bookings: bookingsCount ?? 0,
     pendingDocs: pendingDocsCount ?? 0,
-    openChats: openChatsCount ?? 0,
+    openChats: openChatsCount,
     properties: propertiesCount ?? 0,
   };
 

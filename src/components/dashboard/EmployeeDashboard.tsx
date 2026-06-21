@@ -46,9 +46,9 @@ export default function EmployeeDashboard({ stats, fullName }: EmployeeDashboard
 
       {/* Quick Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <QuickStat icon="forum" label="Open Chats" value={stats.openChats || 4} color="#002046" bg="rgba(0,32,70,0.06)" />
-        <QuickStat icon="folder_open" label="Docs to Review" value={stats.pendingDocs || 5} color="#ba1a1a" bg="rgba(186,26,26,0.06)" />
-        <QuickStat icon="calendar_check" label="My Bookings" value={stats.bookings || 12} color="#735c00" bg="rgba(115,92,0,0.06)" />
+        <QuickStat icon="forum" label="Open Chats" value={stats.openChats} color="#002046" bg="rgba(0,32,70,0.06)" />
+        <QuickStat icon="folder_open" label="Docs to Review" value={stats.pendingDocs} color="#ba1a1a" bg="rgba(186,26,26,0.06)" />
+        <QuickStat icon="calendar_check" label="My Bookings" value={stats.bookings} color="#735c00" bg="rgba(115,92,0,0.06)" />
         <QuickStat icon="schedule" label="Avg Response" value="4m" color="#1b365d" bg="rgba(27,54,93,0.06)" />
       </div>
 

@@ -30,10 +30,10 @@ const MOCK_TEAM = [
 
 export default function AdminDashboard({ stats, fullName }: AdminDashboardProps) {
   const statCards = [
-    { label: "Total Properties",   value: stats.properties || 142, icon: "domain",          color: "#002046", bg: "rgba(0,32,70,0.06)",   change: "+4.2%",  positive: true },
-    { label: "Active Bookings",    value: stats.bookings || 38,    icon: "calendar_check",   color: "#735c00", bg: "rgba(115,92,0,0.06)",  change: "+12%",   positive: true },
-    { label: "Pending Documents",  value: stats.pendingDocs || 14, icon: "folder_open",      color: "#ba1a1a", bg: "rgba(186,26,26,0.06)", change: "Action needed", positive: false },
-    { label: "Open Chat Tickets",  value: stats.openChats || 8,    icon: "forum",            color: "#1b365d", bg: "rgba(27,54,93,0.06)",  change: "3 urgent", positive: false },
+    { label: "Total Properties",   value: stats.properties, icon: "domain",          color: "#002046", bg: "rgba(0,32,70,0.06)" },
+    { label: "Active Bookings",    value: stats.bookings,   icon: "calendar_check",   color: "#735c00", bg: "rgba(115,92,0,0.06)" },
+    { label: "Pending Documents",  value: stats.pendingDocs, icon: "folder_open",     color: "#ba1a1a", bg: "rgba(186,26,26,0.06)" },
+    { label: "Open Chat Tickets",  value: stats.openChats,  icon: "forum",            color: "#1b365d", bg: "rgba(27,54,93,0.06)" },
   ];
 
   return (
@@ -72,9 +72,6 @@ export default function AdminDashboard({ stats, fullName }: AdminDashboardProps)
                   {card.icon}
                 </span>
               </div>
-              <span className={`text-xs font-semibold ${card.positive ? "text-emerald-700" : "text-red-600"}`}>
-                {card.change}
-              </span>
             </div>
             <p className="text-xs font-semibold text-[#44474e]/60 uppercase tracking-widest mb-1">{card.label}</p>
             <p className="text-3xl font-bold text-[#002046]">{card.value}</p>
